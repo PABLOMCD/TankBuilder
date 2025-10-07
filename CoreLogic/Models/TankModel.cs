@@ -2,22 +2,22 @@
 {
     public class TankModel
     {
-        public double Width { get; set; }
-        public double Depth { get; set; }
-        public double Height { get; set; }
-        public double WallThickness { get; set; }
+        public double Width { get; set; }        // pulgadas
+        public double Height { get; set; }       // pulgadas
+        public double Depth { get; set; }        // pulgadas
+        public double Thickness { get; set; }    // pulgadas
 
-        public TankModel(double width, double depth, double height, double wallThickness)
+        public TankModel(double width, double height, double depth, double thickness)
         {
             Width = width;
-            Depth = depth;
             Height = height;
-            WallThickness = wallThickness;
+            Depth = depth;
+            Thickness = thickness;
         }
 
         public override string ToString()
         {
-            return $"Tank {Width}x{Depth}x{Height} mm - Thickness {WallThickness} mm";
+            return $"Tank: {Width}x{Depth}x{Height} in | Thickness: {Thickness} in";
         }
     }
 }

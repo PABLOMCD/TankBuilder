@@ -1,32 +1,32 @@
 ﻿using CoreLogic.Models;
-using System.Collections.Generic;
+using System.Text;
 
 namespace CoreLogic.Services
 {
     public class TankBuilderService
     {
         public TankModel Tank { get; private set; }
-        public List<SegmentModel> Segments { get; private set; }
 
-        public TankBuilderService(double width, double depth, double height, double wallThickness)
+        public TankBuilderService(double width, double height, double depth, double thickness)
         {
-            Tank = new TankModel(width, depth, height, wallThickness);
-            Segments = new List<SegmentModel>
-            {
-                new SegmentModel(SegmentType.Front) { HasATC = true },
-                new SegmentModel(SegmentType.Left) { HasMeterBox = true },
-                new SegmentModel(SegmentType.Rear) { HasRadiator = true },
-                new SegmentModel(SegmentType.Right) { HasDrainValve = true }
-            };
+            Tank = new TankModel(width, height, depth, thickness);
         }
 
-        public string Summary()
+        public string GetSummary()
         {
-            string info = $"Tank: {Tank}\n";
-            foreach (var seg in Segments)
-                info += $" - {seg}\n";
-
-            return info;
+            var sb = new StringBuilder();
+            sb.AppendLine("Tank Summary (in):");
+            sb.AppendLine($" - Width: {Tank.Width}");
+            sb.AppendLine($" - Height: {Tank.Height}");
+            sb.AppendLine($" - Depth: {Tank.Depth}");
+            sb.AppendLine($" - Thickness: {Tank.Thickness}");
+            sb.AppendLine();
+            sb.AppendLine("In millimeters:");
+            sb.AppendLine($" - Width: {Tank.Width * 25.4:F2} mm");
+            sb.AppendLine($" - Height: {Tank.Height * 25.4:F2} mm");
+            sb.AppendLine($" - Depth: {Tank.Depth * 25.4:F2} mm");
+            sb.AppendLine($" - Thickness: {Tank.Thickness * 25.4:F2} mm");
+            return sb.ToString();
         }
     }
 }
