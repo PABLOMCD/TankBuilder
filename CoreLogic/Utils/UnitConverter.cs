@@ -2,7 +2,7 @@
 {
     public static class UnitConverter
     {
-        public const double InchToMillimeter = 25.4;
+        public const double InchToMillimeter = 2.54;
 
         public static double ToMillimeters(double inches)
             => inches * InchToMillimeter;

@@ -71,7 +71,7 @@ namespace UI_WPF.ViewModels
                 var connector = new InventorBridge.InventorConnector();
 
                 // 3. Genera la pieza en Inventor
-                connector.CreateTankPart(tank);
+                connector.CreateTankSheetMetal(tank);
 
                 // 4. Mensaje de confirmación
                 MessageBox.Show(

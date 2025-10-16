@@ -1,4 +1,6 @@
 ﻿using System;
+using System.IO;
+using System.Runtime.InteropServices;
 using Inventor;
 using CoreLogic.Models;
 using CoreLogic.Utils;
@@ -8,58 +10,67 @@ namespace InventorBridge
     public class InventorConnector
     {
         private Inventor.Application _invApp;
+        private const string SHEET_METAL_GUID = "{9C464203-9BAE-11D3-8BAD-0060B0CE6BB4}";
+        private const string VTC_INV_SM_TEMPLATE_FALLBACK =
+            @"V:\3D\Inventor Configuration\2020 Templates\Corporate Standard\VTC - Sheet Metal.ipt";
 
         public InventorConnector()
         {
-            try
+            try { _invApp = (Inventor.Application)Marshal.BindToMoniker("!Inventor.Application"); }
+            catch
             {
-                // Intenta conectarse a una sesión abierta
-                object obj = System.Activator.CreateInstance(Type.GetTypeFromProgID("Inventor.Application"));
-                _invApp = (Inventor.Application)obj;
-                _invApp.Visible = true;
-            }
-            catch (Exception)
-            {
-                // Si no se puede, abre Inventor
-                Type inventorAppType = Type.GetTypeFromProgID("Inventor.Application");
-                _invApp = (Inventor.Application)Activator.CreateInstance(inventorAppType);
+                var t = Type.GetTypeFromProgID("Inventor.Application");
+                _invApp = (Inventor.Application)Activator.CreateInstance(t);
                 _invApp.Visible = true;
             }
         }
 
-
-
-        public void CreateTankPart(TankModel tank)
+        private string GetCorporateSheetMetalTemplate()
         {
-            // Convierte dimensiones de pulgadas a milímetros
-            double width = UnitConverter.ToMillimeters(tank.Width);
-            double height = UnitConverter.ToMillimeters(tank.Height);
-            double depth = UnitConverter.ToMillimeters(tank.Depth);
-            double thickness = UnitConverter.ToMillimeters(tank.Thickness);
+            string env = System.Environment.GetEnvironmentVariable("VTC_INV_SM_TEMPLATE");
+            if (!string.IsNullOrWhiteSpace(env) && System.IO.File.Exists(env)) return env;
 
-            // Crea un nuevo documento de pieza
-            PartDocument partDoc = (PartDocument)_invApp.Documents.Add(DocumentTypeEnum.kPartDocumentObject,
-                _invApp.FileManager.GetTemplateFile(DocumentTypeEnum.kPartDocumentObject),
+            if (System.IO.File.Exists(VTC_INV_SM_TEMPLATE_FALLBACK)) return VTC_INV_SM_TEMPLATE_FALLBACK;
+
+            return _invApp.FileManager.GetTemplateFile(
+                DocumentTypeEnum.kPartDocumentObject,
+                SystemOfMeasureEnum.kDefaultSystemOfMeasure,
+                DraftingStandardEnum.kDefault_DraftingStandard,
+                SHEET_METAL_GUID);
+        }
+
+        public void CreateTankSheetMetal(TankModel tank)
+        {
+            double widthMm = UnitConverter.ToMillimeters(tank.Width);
+            double heightMm = UnitConverter.ToMillimeters(tank.Height);
+            double thickMm = UnitConverter.ToMillimeters(tank.Thickness);
+
+            var partDoc = (PartDocument)_invApp.Documents.Add(
+                DocumentTypeEnum.kPartDocumentObject,
+                GetCorporateSheetMetalTemplate(),
                 true);
 
-            PartComponentDefinition compDef = partDoc.ComponentDefinition;
-            TransientGeometry tg = _invApp.TransientGeometry;
+            var smDef = partDoc.ComponentDefinition as SheetMetalComponentDefinition
+                        ?? throw new InvalidOperationException("La plantilla no es de Sheet Metal.");
 
-            // Crear un sketch básico para el perfil del tanque
-            PlanarSketch sketch = compDef.Sketches.Add(compDef.WorkPlanes[3]);
-            sketch.SketchLines.AddAsTwoPointRectangle(
-                tg.CreatePoint2d(0, 0),
-                tg.CreatePoint2d(width, height)
-            );
+            var uom = partDoc.UnitsOfMeasure;
+            smDef.Thickness.Value = (double)uom.GetValueFromExpression($"{thickMm} mm", UnitsTypeEnum.kDefaultDisplayLengthUnits);
 
-            // Extruir para generar el tanque base
-            Profile profile = sketch.Profiles.AddForSolid();
-            compDef.Features.ExtrudeFeatures.AddByDistanceExtent(
-                profile, depth,
-                PartFeatureExtentDirectionEnum.kPositiveExtentDirection,
-                PartFeatureOperationEnum.kJoinOperation);
+            var tg = _invApp.TransientGeometry;
+            var sk = smDef.Sketches.Add(smDef.WorkPlanes[3]);
 
-            partDoc.SaveAs(@"C:\Temp\TankBuilder_Sample.ipt", false);
+            double wx = (double)uom.GetValueFromExpression($"{widthMm} mm", UnitsTypeEnum.kDefaultDisplayLengthUnits);
+            double hy = (double)uom.GetValueFromExpression($"{heightMm} mm", UnitsTypeEnum.kDefaultDisplayLengthUnits);
+
+            sk.SketchLines.AddAsTwoPointRectangle(tg.CreatePoint2d(0, 0), tg.CreatePoint2d(wx, hy));
+
+            var prof = sk.Profiles.AddForSolid();
+            var smFeat = (SheetMetalFeatures)smDef.Features;
+            var faceDef = smFeat.FaceFeatures.CreateFaceFeatureDefinition(prof);
+            smFeat.FaceFeatures.Add(faceDef);
+
+            System.IO.Directory.CreateDirectory(@"C:\Temp");
+            partDoc.SaveAs(@"C:\Temp\TankBuilder_SheetBase.ipt", false);
         }
     }
 }
