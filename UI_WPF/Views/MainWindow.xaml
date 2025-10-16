@@ -4,62 +4,87 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="{Binding Title}" Height="500" Width="850"
+        Title="{Binding Title}"
+        Height="460" Width="620"
         WindowStartupLocation="CenterScreen"
-        Background="#1e1e1e">
+        Background="White">
 
-    <Grid Margin="30">
+    <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
         <!-- Encabezado -->
-        <TextBlock Text="{Binding Title}" 
-                   FontSize="30" 
-                   Foreground="White"
+        <TextBlock Text="{Binding Title}"
+                   FontSize="24"
                    FontWeight="Bold"
+                   Foreground="Black"
                    HorizontalAlignment="Center"
-                   Margin="0,0,0,25"/>
+                   Margin="0,0,0,20"/>
 
-        <!-- Cuerpo -->
-        <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Top" Width="320">
+        <!-- Cuerpo principal -->
+        <StackPanel Grid.Row="1"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Top"
+                    Width="340">
 
-            <TextBlock Text="Dimensiones del tanque (in)" 
-                       FontSize="18" 
-                       Foreground="LightGray" 
-                       Margin="0,0,0,20" 
+            <TextBlock Text="Dimensiones de la lámina (in)"
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       Foreground="Black"
+                       Margin="0,0,0,20"
                        TextAlignment="Center"/>
 
             <!-- Ancho -->
-            <TextBlock Text="Ancho (in)" Foreground="White"/>
-            <TextBox Text="{Binding Width, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+            <TextBlock Text="Ancho (in)" Foreground="Black"/>
+            <TextBox Text="{Binding WidthIn, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                      Margin="0,2,0,10" FontSize="14"/>
 
             <!-- Altura -->
-            <TextBlock Text="Altura (in)" Foreground="White"/>
-            <TextBox Text="{Binding Height, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                     Margin="0,2,0,10" FontSize="14"/>
+            <TextBlock Text="Altura (in)" Foreground="Black"/>
+            <TextBox Text="{Binding HeightIn, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     Margin="0,2,0,20" FontSize="14"/>
 
-            <!-- Fondo -->
-            <TextBlock Text="Fondo (in)" Foreground="White"/>
-            <TextBox Text="{Binding Depth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                     Margin="0,2,0,10" FontSize="14"/>
+            <!-- Estilo de chapa -->
+            <TextBlock Text="Estilo de chapa" Foreground="Black"/>
+            <ComboBox ItemsSource="{Binding SheetStyles}"
+                      SelectedItem="{Binding SelectedStyle}"
+                      Margin="0,2,0,12"
+                      FontSize="14"
+                      MinHeight="26"/>
 
-            <!-- Espesor -->
-            <TextBlock Text="Espesor de chapa (in)" Foreground="White"/>
-            <TextBox Text="{Binding Thickness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                     Margin="0,2,0,25" FontSize="14"/>
+            <!-- Regla de desplegado -->
+            <TextBlock Text="Regla de desplegado" Foreground="Black"/>
+            <ComboBox ItemsSource="{Binding UnfoldRules}"
+                      SelectedItem="{Binding SelectedRule}"
+                      Margin="0,2,0,20"
+                      FontSize="14"
+                      MinHeight="26"/>
 
-            <Button Content="Generar tanque" 
-                    Height="38"
-                    Background="#007ACC" 
-                    Foreground="White"
-                    FontWeight="Bold"
-                    BorderThickness="0"
-                    Cursor="Hand"
-                    Command="{Binding GenerateTankCommand}"/>
+            <!-- Botones -->
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Center">
+                <Button Content="Actualizar listas"
+                        Command="{Binding RefreshListsCommand}"
+                        Width="140" Height="32"
+                        Margin="0,0,10,0"/>
+                <Button Content="Generar lámina"
+                        Command="{Binding GenerateSheetCommand}"
+                        Width="140" Height="32"
+                        Background="#007ACC"
+                        Foreground="White"
+                        FontWeight="Bold"
+                        BorderThickness="0"
+                        Cursor="Hand"/>
+            </StackPanel>
 
+            <!-- Info de salida -->
+            <TextBlock Text="Salida: C:\Temp\TankBuilder_SheetBase.ipt"
+                       Foreground="Gray"
+                       FontSize="12"
+                       Margin="0,20,0,0"
+                       TextAlignment="Center"/>
         </StackPanel>
     </Grid>
 </Window>

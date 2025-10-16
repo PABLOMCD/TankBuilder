@@ -1,20 +1,21 @@
 ﻿using System;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
 using InventorBridge;
 
-
 namespace UI_WPF.ViewModels
 {
     public class MainViewModel : INotifyPropertyChanged
     {
-        private string _title = "TankBuilder";
-        private double _width;
-        private double _height;
-        private double _depth;
-        private double _thickness;
+        private string _title = "TankBuilder – Sheet Metal (in)";
+        private double _widthIn;
+        private double _heightIn;
+
+        private string? _selectedStyle;
+        private string? _selectedRule;
 
         public string Title
         {
@@ -22,76 +23,117 @@ namespace UI_WPF.ViewModels
             set { _title = value; OnPropertyChanged(); }
         }
 
-        public double Width
+        // Entradas en pulgadas (in)
+        public double WidthIn
         {
-            get => _width;
-            set { _width = value; OnPropertyChanged(); }
+            get => _widthIn;
+            set { _widthIn = value; OnPropertyChanged(); }
         }
 
-        public double Height
+        public double HeightIn
         {
-            get => _height;
-            set { _height = value; OnPropertyChanged(); }
+            get => _heightIn;
+            set { _heightIn = value; OnPropertyChanged(); }
         }
 
-        public double Depth
+        // Listas y selección
+        public ObservableCollection<string> SheetStyles { get; } = new();
+        public ObservableCollection<string> UnfoldRules { get; } = new();
+
+        public string? SelectedStyle
         {
-            get => _depth;
-            set { _depth = value; OnPropertyChanged(); }
+            get => _selectedStyle;
+            set { _selectedStyle = value; OnPropertyChanged(); }
         }
 
-        public double Thickness
+        public string? SelectedRule
         {
-            get => _thickness;
-            set { _thickness = value; OnPropertyChanged(); }
+            get => _selectedRule;
+            set { _selectedRule = value; OnPropertyChanged(); }
         }
 
-        // Constructor
+        // Comandos
+        public ICommand RefreshListsCommand { get; }
+        public ICommand GenerateSheetCommand { get; }
+
         public MainViewModel()
         {
-            Width = 48;      // pulgadas
-            Height = 60;
-            Depth = 40;
-            Thickness = 0.25;
-            GenerateTankCommand = new RelayCommand(GenerateTank);
+            // Valores ejemplo (in)
+            WidthIn = 65.25;
+            HeightIn = 82.98;
+
+            RefreshListsCommand = new RelayCommand(RefreshLists);
+            GenerateSheetCommand = new RelayCommand(GenerateSheet, CanGenerate);
+
+            // Carga inicial
+            RefreshLists();
         }
 
-        // Comando del botón
-        public ICommand GenerateTankCommand { get; }
+        private bool CanGenerate()
+        {
+            return WidthIn > 0 && HeightIn > 0;
+        }
 
-        private void GenerateTank()
+        private void RefreshLists()
         {
             try
             {
-                // 1. Crea el modelo del tanque desde CoreLogic
-                var service = new CoreLogic.Services.TankBuilderService(Width, Height, Depth, Thickness);
-                var tank = service.Tank;
+                var connector = new InventorConnector();
 
-                // 2. Crea el conector a Inventor
-                var connector = new InventorBridge.InventorConnector();
+                SheetStyles.Clear();
+                foreach (var s in connector.GetSheetMetalStyles())
+                    SheetStyles.Add(s);
+                SelectedStyle = SheetStyles.Count > 0 ? SheetStyles[0] : null;
 
-                // 3. Genera la pieza en Inventor
-                connector.CreateTankSheetMetal(tank);
-
-                // 4. Mensaje de confirmación
-                MessageBox.Show(
-                    "✅ Tanque generado correctamente en Inventor.\n\nArchivo guardado en:\nC:\\Temp\\TankBuilder_Sample.ipt",
-                    "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
+                UnfoldRules.Clear();
+                foreach (var r in connector.GetUnfoldRules())
+                    UnfoldRules.Add(r);
+                SelectedRule = UnfoldRules.Count > 0 ? UnfoldRules[0] : null;
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                MessageBox.Show($"⚠️ Error al conectar con Inventor:\n\n{ex.Message}",
-                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(
+                    $"No se pudieron cargar estilos/reglas:\n{ex.Message}",
+                    "Aviso", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
+        private void GenerateSheet()
+        {
+            try
+            {
+                // Construir modelo en pulgadas (el servicio/bridge convertirán a mm internamente)
+                var service = new CoreLogic.Services.TankBuilderService(
+                    WidthIn, HeightIn, /*Depth*/ 0, /*Thickness*/ 0);
+                var tank = service.Tank;
+
+                // Pasar selección al Bridge vía variables (simple y efectiva)
+                if (!string.IsNullOrWhiteSpace(SelectedStyle))
+                    Environment.SetEnvironmentVariable("VTC_INV_SM_STYLE", SelectedStyle);
+                if (!string.IsNullOrWhiteSpace(SelectedRule))
+                    Environment.SetEnvironmentVariable("VTC_INV_UNFOLD_RULE", SelectedRule);
+
+                var connector = new InventorConnector();
+                connector.CreateTankSheetMetal(tank);
+
+                MessageBox.Show(
+                    "Lámina generada en: C:\\Temp\\TankBuilder_SheetBase.ipt",
+                    "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Error al generar la lámina:\n{ex.Message}",
+                    "Falla", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
 
         public event PropertyChangedEventHandler? PropertyChanged;
         protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 
-    // Clase auxiliar para comandos
+    // Comando simple
     public class RelayCommand : ICommand
     {
         private readonly Action _execute;
@@ -99,7 +141,7 @@ namespace UI_WPF.ViewModels
 
         public RelayCommand(Action execute, Func<bool>? canExecute = null)
         {
-            _execute = execute;
+            _execute = execute ?? throw new ArgumentNullException(nameof(execute));
             _canExecute = canExecute;
         }
 

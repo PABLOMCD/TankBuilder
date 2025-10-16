@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Inventor;
 using CoreLogic.Models;
@@ -31,11 +32,58 @@ namespace InventorBridge
 
             if (System.IO.File.Exists(VTC_INV_SM_TEMPLATE_FALLBACK)) return VTC_INV_SM_TEMPLATE_FALLBACK;
 
+            // Forzar plantilla de Sheet Metal por GUID
             return _invApp.FileManager.GetTemplateFile(
                 DocumentTypeEnum.kPartDocumentObject,
                 SystemOfMeasureEnum.kDefaultSystemOfMeasure,
                 DraftingStandardEnum.kDefault_DraftingStandard,
                 SHEET_METAL_GUID);
+        }
+
+        // Devuelve los nombres de estilos de chapa disponibles en la plantilla corporativa
+        public IList<string> GetSheetMetalStyles()
+        {
+            var doc = (PartDocument)_invApp.Documents.Add(
+                DocumentTypeEnum.kPartDocumentObject,
+                GetCorporateSheetMetalTemplate(),
+                true);
+
+            try
+            {
+                var smDef = doc.ComponentDefinition as SheetMetalComponentDefinition
+                            ?? throw new InvalidOperationException("La plantilla no es de Sheet Metal.");
+
+                var estilos = new List<string>();
+                foreach (SheetMetalStyle s in smDef.SheetMetalStyles) estilos.Add(s.Name);
+                return estilos;
+            }
+            finally
+            {
+                doc.Close(true);
+            }
+        }
+
+        // Devuelve los nombres de reglas de desplegado (Unfold Methods)
+        public IList<string> GetUnfoldRules()
+        {
+            var doc = (PartDocument)_invApp.Documents.Add(
+                DocumentTypeEnum.kPartDocumentObject,
+                GetCorporateSheetMetalTemplate(),
+                true);
+
+            try
+            {
+                var smDef = doc.ComponentDefinition as SheetMetalComponentDefinition
+                            ?? throw new InvalidOperationException("La plantilla no es de Sheet Metal.");
+
+                var reglas = new List<string>();
+                foreach (UnfoldMethod m in smDef.UnfoldMethods) reglas.Add(m.Name);
+                return reglas;
+            }
+            finally
+            {
+                doc.Close(true);
+            }
         }
 
         public void CreateTankSheetMetal(TankModel tank)
@@ -57,18 +105,31 @@ namespace InventorBridge
             {
                 SheetMetalStyle found = null;
                 foreach (SheetMetalStyle s in smDef.SheetMetalStyles)
-                {
                     if (string.Equals(s.Name, preferredStyle, StringComparison.OrdinalIgnoreCase))
                     { found = s; break; }
-                }
+
                 if (found == null)
                     throw new InvalidOperationException($"Estilo de chapa no encontrado: {preferredStyle}");
-                found.Activate(); // <- clave
+
+                found.Activate(); // clave
             }
             // Si no hay variable, se conserva el estilo activo de la plantilla.
 
-            var tg = _invApp.TransientGeometry;
+            // (Opcional) Regla de desplegado por variable
+            string ruleName = System.Environment.GetEnvironmentVariable("VTC_INV_UNFOLD_RULE");
+            if (!string.IsNullOrWhiteSpace(ruleName))
+            {
+                UnfoldMethod rule = null;
+                foreach (UnfoldMethod m in smDef.UnfoldMethods)
+                    if (string.Equals(m.Name, ruleName, StringComparison.OrdinalIgnoreCase))
+                    { rule = m; break; }
+                if (rule == null)
+                    throw new InvalidOperationException($"Regla de desplegado no encontrada: {ruleName}");
+                smDef.UnfoldMethod = rule;
+            }
 
+            // Sketch y base
+            var tg = _invApp.TransientGeometry;
             var sketch = smDef.Sketches.Add(smDef.WorkPlanes[3]);
             sketch.SketchLines.AddAsTwoPointRectangle(
                 tg.CreatePoint2d(0, 0),
@@ -83,7 +144,7 @@ namespace InventorBridge
             partDoc.SaveAs(@"C:\Temp\TankBuilder_SheetBase.ipt", false);
         }
 
-        // Wrapper opcional para compatibilidad con llamadas existentes
+        // Compatibilidad con llamadas existentes
         public void CreateTankPart(TankModel tank) => CreateTankSheetMetal(tank);
     }
 }
