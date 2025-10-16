@@ -1,5 +1,4 @@
 ﻿using System;
-using System.IO;
 using System.Runtime.InteropServices;
 using Inventor;
 using CoreLogic.Models;
@@ -43,7 +42,6 @@ namespace InventorBridge
         {
             double widthMm = UnitConverter.ToMillimeters(tank.Width);
             double heightMm = UnitConverter.ToMillimeters(tank.Height);
-            double thickMm = UnitConverter.ToMillimeters(tank.Thickness);
 
             var partDoc = (PartDocument)_invApp.Documents.Add(
                 DocumentTypeEnum.kPartDocumentObject,
@@ -53,24 +51,39 @@ namespace InventorBridge
             var smDef = partDoc.ComponentDefinition as SheetMetalComponentDefinition
                         ?? throw new InvalidOperationException("La plantilla no es de Sheet Metal.");
 
-            var uom = partDoc.UnitsOfMeasure;
-            smDef.Thickness.Value = (double)uom.GetValueFromExpression($"{thickMm} mm", UnitsTypeEnum.kDefaultDisplayLengthUnits);
+            // --- ACTIVAR ESTILO (no asignar la propiedad) ---
+            string preferredStyle = System.Environment.GetEnvironmentVariable("VTC_INV_SM_STYLE");
+            if (!string.IsNullOrWhiteSpace(preferredStyle))
+            {
+                SheetMetalStyle found = null;
+                foreach (SheetMetalStyle s in smDef.SheetMetalStyles)
+                {
+                    if (string.Equals(s.Name, preferredStyle, StringComparison.OrdinalIgnoreCase))
+                    { found = s; break; }
+                }
+                if (found == null)
+                    throw new InvalidOperationException($"Estilo de chapa no encontrado: {preferredStyle}");
+                found.Activate(); // <- clave
+            }
+            // Si no hay variable, se conserva el estilo activo de la plantilla.
 
             var tg = _invApp.TransientGeometry;
-            var sk = smDef.Sketches.Add(smDef.WorkPlanes[3]);
 
-            double wx = (double)uom.GetValueFromExpression($"{widthMm} mm", UnitsTypeEnum.kDefaultDisplayLengthUnits);
-            double hy = (double)uom.GetValueFromExpression($"{heightMm} mm", UnitsTypeEnum.kDefaultDisplayLengthUnits);
+            var sketch = smDef.Sketches.Add(smDef.WorkPlanes[3]);
+            sketch.SketchLines.AddAsTwoPointRectangle(
+                tg.CreatePoint2d(0, 0),
+                tg.CreatePoint2d(widthMm, heightMm));
 
-            sk.SketchLines.AddAsTwoPointRectangle(tg.CreatePoint2d(0, 0), tg.CreatePoint2d(wx, hy));
-
-            var prof = sk.Profiles.AddForSolid();
+            var profile = sketch.Profiles.AddForSolid();
             var smFeat = (SheetMetalFeatures)smDef.Features;
-            var faceDef = smFeat.FaceFeatures.CreateFaceFeatureDefinition(prof);
+            var faceDef = smFeat.FaceFeatures.CreateFaceFeatureDefinition(profile);
             smFeat.FaceFeatures.Add(faceDef);
 
             System.IO.Directory.CreateDirectory(@"C:\Temp");
             partDoc.SaveAs(@"C:\Temp\TankBuilder_SheetBase.ipt", false);
         }
+
+        // Wrapper opcional para compatibilidad con llamadas existentes
+        public void CreateTankPart(TankModel tank) => CreateTankSheetMetal(tank);
     }
 }
