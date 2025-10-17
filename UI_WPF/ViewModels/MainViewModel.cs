@@ -1,20 +1,20 @@
 ﻿using System;
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
 using InventorBridge;
-
+using Microsoft.Win32;
 
 namespace UI_WPF.ViewModels
 {
     public class MainViewModel : INotifyPropertyChanged
     {
-        private string _title = "TankBuilder";
-        private double _width;
-        private double _height;
-        private double _depth;
-        private double _thickness;
+        private string _title = "TankBuilder – Sheet Metal (in)";
+        private double _widthIn;
+        private double _heightIn;
+        private string? _partPath;
 
         public string Title
         {
@@ -22,76 +22,100 @@ namespace UI_WPF.ViewModels
             set { _title = value; OnPropertyChanged(); }
         }
 
-        public double Width
+        // Entradas en pulgadas (in)
+        public double WidthIn
         {
-            get => _width;
-            set { _width = value; OnPropertyChanged(); }
+            get => _widthIn;
+            set { _widthIn = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); }
         }
 
-        public double Height
+        public double HeightIn
         {
-            get => _height;
-            set { _height = value; OnPropertyChanged(); }
+            get => _heightIn;
+            set { _heightIn = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); }
         }
 
-        public double Depth
+        // Ruta de la pieza (.ipt) a modificar
+        public string? PartPath
         {
-            get => _depth;
-            set { _depth = value; OnPropertyChanged(); }
+            get => _partPath;
+            set { _partPath = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); }
         }
 
-        public double Thickness
-        {
-            get => _thickness;
-            set { _thickness = value; OnPropertyChanged(); }
-        }
+        // Comandos
+        public ICommand BrowsePartCommand { get; }
+        public ICommand GenerateSheetCommand { get; }   // reutilizado como "Modificar pieza"
 
-        // Constructor
         public MainViewModel()
         {
-            Width = 48;      // pulgadas
-            Height = 60;
-            Depth = 40;
-            Thickness = 0.25;
-            GenerateTankCommand = new RelayCommand(GenerateTank);
+            // Ejemplos
+            WidthIn = 65.25;
+            HeightIn = 82.98;
+
+            BrowsePartCommand = new RelayCommand(BrowsePart);
+            GenerateSheetCommand = new RelayCommand(ModifyPart, CanModify);
         }
 
-        // Comando del botón
-        public ICommand GenerateTankCommand { get; }
+        private bool CanModify()
+        {
+            return WidthIn > 0 && HeightIn > 0
+                   && !string.IsNullOrWhiteSpace(PartPath)
+                   && File.Exists(PartPath);
+        }
 
-        private void GenerateTank()
+        private void BrowsePart()
+        {
+            var dlg = new OpenFileDialog
+            {
+                Title = "Selecciona la pieza de Sheet Metal a modificar",
+                Filter = "Inventor Part (*.ipt)|*.ipt",
+                CheckFileExists = true,
+                Multiselect = false
+            };
+
+            if (dlg.ShowDialog() == true)
+                PartPath = dlg.FileName;
+        }
+
+        private void ModifyPart()
         {
             try
             {
-                // 1. Crea el modelo del tanque desde CoreLogic
-                var service = new CoreLogic.Services.TankBuilderService(Width, Height, Depth, Thickness);
+                if (string.IsNullOrWhiteSpace(PartPath) || !File.Exists(PartPath))
+                {
+                    MessageBox.Show("Selecciona primero una pieza válida (.ipt).",
+                        "Falta archivo", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                // Construir modelo (el bridge convierte a mm)
+                var service = new CoreLogic.Services.TankBuilderService(
+                    WidthIn, HeightIn, /*Depth*/ 0, /*Thickness*/ 0);
                 var tank = service.Tank;
 
-                // 2. Crea el conector a Inventor
-                var connector = new InventorBridge.InventorConnector();
+                var connector = new InventorConnector();
 
-                // 3. Genera la pieza en Inventor
-                connector.CreateTankSheetMetal(tank);
+                // Modificar la pieza existente (estilo/reglas vienen desde la propia pieza)
+                connector.ModifyTankSheetMetal(PartPath, tank);
 
-                // 4. Mensaje de confirmación
                 MessageBox.Show(
-                    "✅ Tanque generado correctamente en Inventor.\n\nArchivo guardado en:\nC:\\Temp\\TankBuilder_Sample.ipt",
+                    $"Pieza modificada:\n{PartPath}",
                     "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                MessageBox.Show($"⚠️ Error al conectar con Inventor:\n\n{ex.Message}",
-                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(
+                    $"Error al modificar la lámina:\n{ex.Message}",
+                    "Falla", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-
 
         public event PropertyChangedEventHandler? PropertyChanged;
         protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 
-    // Clase auxiliar para comandos
+    // Comando simple
     public class RelayCommand : ICommand
     {
         private readonly Action _execute;
@@ -99,7 +123,7 @@ namespace UI_WPF.ViewModels
 
         public RelayCommand(Action execute, Func<bool>? canExecute = null)
         {
-            _execute = execute;
+            _execute = execute ?? throw new ArgumentNullException(nameof(execute));
             _canExecute = canExecute;
         }
 

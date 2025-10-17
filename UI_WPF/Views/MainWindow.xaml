@@ -4,62 +4,89 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="{Binding Title}" Height="500" Width="850"
+        Title="{Binding Title}"
+        Height="420" Width="640"
         WindowStartupLocation="CenterScreen"
-        Background="#1e1e1e">
+        Background="White">
 
-    <Grid Margin="30">
+    <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
         <!-- Encabezado -->
-        <TextBlock Text="{Binding Title}" 
-                   FontSize="30" 
-                   Foreground="White"
+        <TextBlock Text="{Binding Title}"
+                   FontSize="24"
                    FontWeight="Bold"
+                   Foreground="Black"
                    HorizontalAlignment="Center"
-                   Margin="0,0,0,25"/>
+                   Margin="0,0,0,20"/>
 
-        <!-- Cuerpo -->
-        <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Top" Width="320">
+        <!-- Cuerpo principal -->
+        <StackPanel Grid.Row="1"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Top"
+                    Width="420"
+                    Orientation="Vertical">
 
-            <TextBlock Text="Dimensiones del tanque (in)" 
-                       FontSize="18" 
-                       Foreground="LightGray" 
-                       Margin="0,0,0,20" 
+            <!-- Selección de pieza -->
+            <TextBlock Text="Pieza de Sheet Metal a modificar (.ipt)"
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       Foreground="Black"
+                       Margin="0,0,0,10"
+                       TextAlignment="Center"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                <TextBox Text="{Binding PartPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         Width="300"
+                         IsReadOnly="True"
+                         Margin="0,0,8,0"
+                         ToolTip="Ruta de la pieza Inventor (.ipt) a modificar"/>
+                <Button Content="Seleccionar pieza…"
+                        Command="{Binding BrowsePartCommand}"
+                        Width="140"
+                        Height="28"
+                        Cursor="Hand"/>
+            </StackPanel>
+
+            <Separator Margin="0,0,0,12"/>
+
+            <TextBlock Text="Dimensiones de la lámina (in)"
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       Foreground="Black"
+                       Margin="0,0,0,12"
                        TextAlignment="Center"/>
 
             <!-- Ancho -->
-            <TextBlock Text="Ancho (in)" Foreground="White"/>
-            <TextBox Text="{Binding Width, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+            <TextBlock Text="Ancho (in)" Foreground="Black"/>
+            <TextBox Text="{Binding WidthIn, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                      Margin="0,2,0,10" FontSize="14"/>
 
             <!-- Altura -->
-            <TextBlock Text="Altura (in)" Foreground="White"/>
-            <TextBox Text="{Binding Height, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                     Margin="0,2,0,10" FontSize="14"/>
+            <TextBlock Text="Altura (in)" Foreground="Black"/>
+            <TextBox Text="{Binding HeightIn, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     Margin="0,2,0,16" FontSize="14"/>
 
-            <!-- Fondo -->
-            <TextBlock Text="Fondo (in)" Foreground="White"/>
-            <TextBox Text="{Binding Depth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                     Margin="0,2,0,10" FontSize="14"/>
+            <!-- Botones -->
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Center">
+                <Button Content="Modificar pieza"
+                        Command="{Binding GenerateSheetCommand}"
+                        Width="180" Height="36"
+                        Background="#007ACC"
+                        Foreground="White"
+                        FontWeight="Bold"
+                        BorderThickness="0"
+                        Cursor="Hand"/>
+            </StackPanel>
 
-            <!-- Espesor -->
-            <TextBlock Text="Espesor de chapa (in)" Foreground="White"/>
-            <TextBox Text="{Binding Thickness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                     Margin="0,2,0,25" FontSize="14"/>
-
-            <Button Content="Generar tanque" 
-                    Height="38"
-                    Background="#007ACC" 
-                    Foreground="White"
-                    FontWeight="Bold"
-                    BorderThickness="0"
-                    Cursor="Hand"
-                    Command="{Binding GenerateTankCommand}"/>
-
+            <TextBlock Text="Selecciona la pieza .ipt y aplica los cambios. El estilo y reglas se tomarán de la propia pieza."
+                       Foreground="Gray"
+                       FontSize="12"
+                       Margin="0,12,0,0"
+                       TextAlignment="Center"/>
         </StackPanel>
     </Grid>
 </Window>
