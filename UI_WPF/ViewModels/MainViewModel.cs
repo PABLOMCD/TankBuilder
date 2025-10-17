@@ -14,6 +14,7 @@ namespace UI_WPF.ViewModels
         private string _title = "TankBuilder – Sheet Metal (in)";
         private double _widthIn;
         private double _heightIn;
+        private double _flangeIn; // LARGOF (pestaña)
         private string? _partPath;
 
         public string Title
@@ -35,6 +36,13 @@ namespace UI_WPF.ViewModels
             set { _heightIn = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); }
         }
 
+        // LARGOF = largo de pestaña (in)
+        public double FlangeIn
+        {
+            get => _flangeIn;
+            set { _flangeIn = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); }
+        }
+
         // Ruta de la pieza (.ipt) a modificar
         public string? PartPath
         {
@@ -44,13 +52,14 @@ namespace UI_WPF.ViewModels
 
         // Comandos
         public ICommand BrowsePartCommand { get; }
-        public ICommand GenerateSheetCommand { get; }   // reutilizado como "Modificar pieza"
+        public ICommand GenerateSheetCommand { get; }   // "Modificar pieza"
 
         public MainViewModel()
         {
-            // Ejemplos
+            // Ejemplos iniciales
             WidthIn = 65.25;
             HeightIn = 82.98;
+            FlangeIn = 4.00;
 
             BrowsePartCommand = new RelayCommand(BrowsePart);
             GenerateSheetCommand = new RelayCommand(ModifyPart, CanModify);
@@ -58,7 +67,7 @@ namespace UI_WPF.ViewModels
 
         private bool CanModify()
         {
-            return WidthIn > 0 && HeightIn > 0
+            return WidthIn > 0 && HeightIn > 0 && FlangeIn > 0
                    && !string.IsNullOrWhiteSpace(PartPath)
                    && File.Exists(PartPath);
         }
@@ -81,22 +90,22 @@ namespace UI_WPF.ViewModels
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(PartPath) || !File.Exists(PartPath))
+                if (!CanModify())
                 {
-                    MessageBox.Show("Selecciona primero una pieza válida (.ipt).",
-                        "Falta archivo", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show("Verifique ruta del archivo, y que ANCHO, LARGO y LARGOF sean > 0.",
+                        "Datos incompletos", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
 
-                // Construir modelo (el bridge convierte a mm)
+                // Construir modelo (en pulgadas)
                 var service = new CoreLogic.Services.TankBuilderService(
-                    WidthIn, HeightIn, /*Depth*/ 0, /*Thickness*/ 0);
+                    WidthIn, HeightIn, /*Depth=LARGOF*/ FlangeIn, /*Thickness*/ 0);
                 var tank = service.Tank;
 
                 var connector = new InventorConnector();
 
-                // Modificar la pieza existente (estilo/reglas vienen desde la propia pieza)
-                connector.ModifyTankSheetMetal(PartPath, tank);
+                // Modificar la pieza existente: ANCHO, LARGO y LARGOF (pulgadas)
+                connector.ModifyTankSheetMetal(PartPath!, tank, FlangeIn);
 
                 MessageBox.Show(
                     $"Pieza modificada:\n{PartPath}",
@@ -105,7 +114,7 @@ namespace UI_WPF.ViewModels
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    $"Error al modificar la lámina:\n{ex.Message}",
+                    $"Error al modificar la pieza:\n{ex.Message}",
                     "Falla", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }

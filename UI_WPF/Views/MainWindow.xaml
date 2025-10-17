@@ -3,9 +3,11 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:behaviors="clr-namespace:UI_WPF.Behaviors"
+        xmlns:glb="clr-namespace:System.Globalization;assembly=mscorlib"
         mc:Ignorable="d"
         Title="{Binding Title}"
-        Height="420" Width="640"
+        Height="470" Width="640"
         WindowStartupLocation="CenterScreen"
         Background="White">
 
@@ -52,24 +54,38 @@
 
             <Separator Margin="0,0,0,12"/>
 
-            <TextBlock Text="Dimensiones de la lámina (in)"
+            <TextBlock Text="Dimensiones (en pulgadas, in)"
                        FontSize="16"
                        FontWeight="SemiBold"
                        Foreground="Black"
                        Margin="0,0,0,12"
                        TextAlignment="Center"/>
 
-            <!-- Ancho -->
-            <TextBlock Text="Ancho (in)" Foreground="Black"/>
-            <TextBox Text="{Binding WidthIn, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                     Margin="0,2,0,10" FontSize="14"/>
+            <!-- ANCHO -->
+            <TextBlock Text="Ancho (ANCHO) [in]" Foreground="Black"/>
+            <TextBox
+                behaviors:NumericDotInput.IsEnabled="True"
+                Text="{Binding WidthIn, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged,
+                               ConverterCulture={x:Static glb:CultureInfo.InvariantCulture}}"
+                Margin="0,2,0,10" FontSize="14"/>
 
-            <!-- Altura -->
-            <TextBlock Text="Altura (in)" Foreground="Black"/>
-            <TextBox Text="{Binding HeightIn, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                     Margin="0,2,0,16" FontSize="14"/>
+            <!-- LARGO -->
+            <TextBlock Text="Largo (LARGO) [in]" Foreground="Black"/>
+            <TextBox
+                behaviors:NumericDotInput.IsEnabled="True"
+                Text="{Binding HeightIn, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged,
+                               ConverterCulture={x:Static glb:CultureInfo.InvariantCulture}}"
+                Margin="0,2,0,10" FontSize="14"/>
 
-            <!-- Botones -->
+            <!-- LARGOF = pestaña/flange -->
+            <TextBlock Text="Largo de pestaña (LARGOF) [in]" Foreground="Black"/>
+            <TextBox
+                behaviors:NumericDotInput.IsEnabled="True"
+                Text="{Binding FlangeIn, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged,
+                               ConverterCulture={x:Static glb:CultureInfo.InvariantCulture}}"
+                Margin="0,2,0,16" FontSize="14"/>
+
+            <!-- Botón principal -->
             <StackPanel Orientation="Horizontal"
                         HorizontalAlignment="Center">
                 <Button Content="Modificar pieza"
@@ -82,7 +98,7 @@
                         Cursor="Hand"/>
             </StackPanel>
 
-            <TextBlock Text="Selecciona la pieza .ipt y aplica los cambios. El estilo y reglas se tomarán de la propia pieza."
+            <TextBlock Text="Los parámetros ANCHO, LARGO y LARGOF se escribirán directamente en la pieza seleccionada (.ipt)."
                        Foreground="Gray"
                        FontSize="12"
                        Margin="0,12,0,0"

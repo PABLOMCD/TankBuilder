@@ -1,12 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using Inventor;
 using CoreLogic.Models;
-using CoreLogic.Utils;
-
-// Alias para evitar ambigüedades con Inventor.Environment y Inventor.File
 using SysEnv = global::System.Environment;
 using IOFile = global::System.IO.File;
 
@@ -15,9 +11,6 @@ namespace InventorBridge
     public class InventorConnector
     {
         private Inventor.Application _invApp;
-        private const string SHEET_METAL_GUID = "{9C464203-9BAE-11D3-8BAD-0060B0CE6BB4}";
-        private const string VTC_INV_SM_TEMPLATE_FALLBACK =
-            @"V:\3D\Inventor Configuration\2020 Templates\Corporate Standard\VTC - Sheet Metal.ipt";
 
         public InventorConnector()
         {
@@ -30,75 +23,18 @@ namespace InventorBridge
             }
         }
 
-        private string GetCorporateSheetMetalTemplate()
-        {
-            string env = SysEnv.GetEnvironmentVariable("VTC_INV_SM_TEMPLATE");
-            if (!string.IsNullOrWhiteSpace(env) && IOFile.Exists(env)) return env;
-
-            if (IOFile.Exists(VTC_INV_SM_TEMPLATE_FALLBACK)) return VTC_INV_SM_TEMPLATE_FALLBACK;
-
-            // Forzar plantilla de Sheet Metal por GUID (fallback universal)
-            return _invApp.FileManager.GetTemplateFile(
-                DocumentTypeEnum.kPartDocumentObject,
-                SystemOfMeasureEnum.kDefaultSystemOfMeasure,
-                DraftingStandardEnum.kDefault_DraftingStandard,
-                SHEET_METAL_GUID);
-        }
-
-        // --- Consulta de estilos desde la PLANTILLA corporativa ---
-        public IList<string> GetSheetMetalStyles()
-        {
-            var doc = (PartDocument)_invApp.Documents.Add(
-                DocumentTypeEnum.kPartDocumentObject,
-                GetCorporateSheetMetalTemplate(),
-                true);
-
-            try
-            {
-                var smDef = doc.ComponentDefinition as SheetMetalComponentDefinition
-                    ?? throw new InvalidOperationException("La plantilla no es de Sheet Metal.");
-
-                var estilos = new List<string>();
-                foreach (SheetMetalStyle s in smDef.SheetMetalStyles) estilos.Add(s.Name);
-                return estilos;
-            }
-            finally { doc.Close(true); }
-        }
-
-        // --- Consulta de reglas de desplegado ---
-        public IList<string> GetUnfoldRules()
-        {
-            var doc = (PartDocument)_invApp.Documents.Add(
-                DocumentTypeEnum.kPartDocumentObject,
-                GetCorporateSheetMetalTemplate(),
-                true);
-
-            try
-            {
-                var smDef = doc.ComponentDefinition as SheetMetalComponentDefinition
-                    ?? throw new InvalidOperationException("La plantilla no es de Sheet Metal.");
-
-                var reglas = new List<string>();
-                foreach (UnfoldMethod m in smDef.UnfoldMethods) reglas.Add(m.Name);
-                return reglas;
-            }
-            finally { doc.Close(true); }
-        }
-
-        // =======================
-        //  MODIFICAR PIEZA EXISTENTE
-        // =======================
-        public void ModifyTankSheetMetal(string partPath, TankModel tank)
+        public void ModifyTankSheetMetal(string partPath, TankModel tank, double flangeIn)
         {
             if (string.IsNullOrWhiteSpace(partPath))
                 throw new ArgumentException("Ruta de la pieza no válida.", nameof(partPath));
             if (!IOFile.Exists(partPath))
                 throw new FileNotFoundException("No se encontró la pieza a modificar.", partPath);
+            if (flangeIn <= 0)
+                throw new ArgumentOutOfRangeException(nameof(flangeIn), "El largo de pestaña (LARGOF) debe ser > 0 in.");
 
             var partDoc = (PartDocument)_invApp.Documents.Open(partPath, true)
                 ?? throw new InvalidOperationException("No se pudo abrir el documento.");
 
-            // StartTransaction requiere _Document
             var txn = _invApp.TransactionManager.StartTransaction(
                 (Inventor._Document)partDoc, "TankBuilder: Modify SheetMetal");
 
@@ -107,28 +43,21 @@ namespace InventorBridge
                 var smDef = partDoc.ComponentDefinition as SheetMetalComponentDefinition
                     ?? throw new InvalidOperationException("El documento no es de Sheet Metal.");
 
-                // Estilo y regla por variables de entorno (si existen)
-                ActivatePreferredSheetMetalStyle(smDef);
-                ApplyPreferredUnfoldRule(smDef);
+                // === Actualizar parámetros (en pulgadas) ===
+                double anchoIn = tank.Width;
+                double largoIn = tank.Height;
+                double largofIn = flangeIn;
 
-                // Actualizar parámetros
-                double widthMm = UnitConverter.ToMillimeters(tank.Width);
-                double heightMm = UnitConverter.ToMillimeters(tank.Height);
-                double thickMm = UnitConverter.ToMillimeters(tank.Thickness);
+                bool okAncho = TrySetInterpolatedParameter(partDoc, "ALTO", anchoIn, "in");
+                bool okLargo = TrySetInterpolatedParameter(partDoc, "LARGO", largoIn, "in");
+                bool okLargof = TrySetInterpolatedParameter(partDoc, "LARGOF", largofIn, "in");
 
-                TrySetAnyParameter(partDoc,
-                    new[] { "Width", "Ancho", "Tank_Width", "PanelWidth" }, widthMm, "mm");
-
-                TrySetAnyParameter(partDoc,
-                    new[] { "Height", "Alto", "Tank_Height", "PanelHeight" }, heightMm, "mm");
-
-                // Ojo: el espesor normalmente lo manda el Estilo de chapa
-                TrySetAnyParameter(partDoc,
-                    new[] { "Thickness", "Espesor", "t", "Gauge" }, thickMm, "mm");
+                if (!okAncho) throw new InvalidOperationException("Parámetro 'ANCHO' no encontrado.");
+                if (!okLargo) throw new InvalidOperationException("Parámetro 'LARGO' no encontrado.");
+                if (!okLargof) throw new InvalidOperationException("Parámetro 'LARGOF' no encontrado.");
 
                 partDoc.Update2(true);
                 partDoc.Save();
-
                 txn.End();
             }
             catch
@@ -138,85 +67,33 @@ namespace InventorBridge
             }
         }
 
-        // Compatibilidad con tu firma previa: ahora lanza NotSupported
-        public void CreateTankPart(TankModel tank)
-        {
-            throw new NotSupportedException(
-                "Esta versión no crea piezas nuevas. Usa ModifyTankSheetMetal(partPath, tank) para modificar una existente.");
-        }
-
         // =======================
         //  HELPERS
         // =======================
-        private static bool TrySetAnyParameter(PartDocument doc, string[] candidateNames, double value, string units)
+        private static bool TrySetInterpolatedParameter(PartDocument doc, string target, double value, string units)
         {
-            if (doc == null) return false;
-            if (candidateNames == null || candidateNames.Length == 0) return false;
+            if (doc == null || string.IsNullOrWhiteSpace(target)) return false;
+            var parms = doc.ComponentDefinition.Parameters;
+            string t = NormalizeName(target);
 
-            var compDef = doc.ComponentDefinition;
-            var parms = compDef.Parameters;
-
-            // 1) UserParameters
             foreach (Parameter p in parms.UserParameters)
-            {
-                if (NameMatch(p.Name, candidateNames))
-                {
-                    p.Expression = $"{value} {units}";
-                    return true;
-                }
-            }
+                if (NormalizeName(p.Name) == t || NormalizeName(p.Name).Contains(t))
+                { p.Expression = $"{value} {units}"; return true; }
 
-            // 2) ModelParameters
             foreach (ModelParameter mp in parms.ModelParameters)
-            {
-                if (NameMatch(mp.Name, candidateNames))
-                {
-                    mp.Expression = $"{value} {units}";
-                    return true;
-                }
-            }
+                if (NormalizeName(mp.Name) == t || NormalizeName(mp.Name).Contains(t))
+                { mp.Expression = $"{value} {units}"; return true; }
 
             return false;
         }
 
-        private static bool NameMatch(string candidate, string[] targets)
+        private static string NormalizeName(string s)
         {
-            foreach (var t in targets)
-                if (string.Equals(candidate, t, StringComparison.OrdinalIgnoreCase))
-                    return true;
-            return false;
-        }
-
-        private static void ActivatePreferredSheetMetalStyle(SheetMetalComponentDefinition smDef)
-        {
-            string preferredStyle = SysEnv.GetEnvironmentVariable("VTC_INV_SM_STYLE");
-            if (string.IsNullOrWhiteSpace(preferredStyle)) return;
-
-            SheetMetalStyle found = null;
-            foreach (SheetMetalStyle s in smDef.SheetMetalStyles)
-                if (string.Equals(s.Name, preferredStyle, StringComparison.OrdinalIgnoreCase))
-                { found = s; break; }
-
-            if (found == null)
-                throw new InvalidOperationException($"Estilo de chapa no encontrado: {preferredStyle}");
-
-            found.Activate();
-        }
-
-        private static void ApplyPreferredUnfoldRule(SheetMetalComponentDefinition smDef)
-        {
-            string ruleName = SysEnv.GetEnvironmentVariable("VTC_INV_UNFOLD_RULE");
-            if (string.IsNullOrWhiteSpace(ruleName)) return;
-
-            UnfoldMethod rule = null;
-            foreach (UnfoldMethod m in smDef.UnfoldMethods)
-                if (string.Equals(m.Name, ruleName, StringComparison.OrdinalIgnoreCase))
-                { rule = m; break; }
-
-            if (rule == null)
-                throw new InvalidOperationException($"Regla de desplegado no encontrada: {ruleName}");
-
-            smDef.UnfoldMethod = rule;
+            if (string.IsNullOrEmpty(s)) return string.Empty;
+            return s.Trim().ToLowerInvariant()
+                    .Replace("_", "").Replace("-", "").Replace(" ", "")
+                    .Replace("á", "a").Replace("é", "e").Replace("í", "i")
+                    .Replace("ó", "o").Replace("ú", "u").Replace("ñ", "n");
         }
     }
 }
