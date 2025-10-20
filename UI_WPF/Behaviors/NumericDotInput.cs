@@ -7,7 +7,6 @@ namespace UI_WPF.Behaviors
 {
     public static class NumericDotInput
     {
-        // Actívalo con: behaviors:NumericDotInput.IsEnabled="True"
         public static readonly DependencyProperty IsEnabledProperty =
             DependencyProperty.RegisterAttached(
                 "IsEnabled",
@@ -30,7 +29,7 @@ namespace UI_WPF.Behaviors
                 tb.PreviewTextInput += OnPreviewTextInput;
                 tb.PreviewKeyDown += OnPreviewKeyDown;
                 DataObject.AddPastingHandler(tb, OnPaste);
-                InputMethod.SetIsInputMethodEnabled(tb, false); // Evita IME (caracteres raros)
+                InputMethod.SetIsInputMethodEnabled(tb, false);
             }
             else
             {
@@ -40,37 +39,65 @@ namespace UI_WPF.Behaviors
             }
         }
 
-        // Acepta: dígitos y un único punto; permite vacío mientras escriben
+        // Validación final: solo dígitos y UN punto (ya normalizado)
         private static readonly Regex _validPattern = new(@"^\d*\.?\d*$");
 
         private static void OnPreviewTextInput(object sender, TextCompositionEventArgs e)
         {
             var tb = (TextBox)sender;
-            string proposed = GetProposedText(tb, e.Text);
-            e.Handled = !_validPattern.IsMatch(proposed);
+
+            // Normalizar coma a punto
+            string input = e.Text == "," ? "." : e.Text;
+
+            // Construir texto propuesto e insertar manualmente
+            int newCaret;
+            string proposed = GetProposedText(tb, input, out newCaret);
+
+            // Validar contra el patrón (punto ya normalizado)
+            if (_validPattern.IsMatch(proposed))
+            {
+                e.Handled = true;              // nosotros hacemos la inserción
+                tb.Text = proposed;
+                tb.SelectionStart = newCaret;  // colocar el cursor después de lo insertado
+                tb.SelectionLength = 0;
+            }
+            else
+            {
+                e.Handled = true; // bloquear entrada inválida
+            }
         }
 
-        // Permitir teclas de edición/navegación. Bloquear separadores indeseados.
         private static void OnPreviewKeyDown(object sender, KeyEventArgs e)
         {
+            // Permitir edición/navegación normal
             if (e.Key is Key.Back or Key.Delete or Key.Tab or Key.Left or Key.Right or Key.Home or Key.End)
                 return;
 
-            // Bloquea coma y combinaciones raras
-            if (e.Key == Key.OemComma)
-                e.Handled = true;
+            // Ya no bloqueamos OemComma ni Decimal; los normalizamos en PreviewTextInput
         }
 
         private static void OnPaste(object sender, DataObjectPastingEventArgs e)
         {
             if (sender is not TextBox tb) return;
 
-            if (e.DataObject.GetDataPresent(DataFormats.Text))
+            if (!e.DataObject.GetDataPresent(DataFormats.Text))
             {
-                string pasteText = (string)e.DataObject.GetData(DataFormats.Text);
-                string proposed = GetProposedText(tb, pasteText);
-                if (!_validPattern.IsMatch(proposed))
-                    e.CancelCommand();
+                e.CancelCommand();
+                return;
+            }
+
+            string paste = (string)e.DataObject.GetData(DataFormats.Text) ?? string.Empty;
+            paste = paste.Replace(',', '.'); // normalizar
+
+            int newCaret;
+            string proposed = GetProposedText(tb, paste, out newCaret);
+
+            if (_validPattern.IsMatch(proposed))
+            {
+                e.CancelCommand();            // hacemos la inserción nosotros
+                tb.Text = proposed;
+                tb.SelectionStart = newCaret;
+                tb.SelectionLength = 0;
             }
             else
             {
@@ -78,15 +105,19 @@ namespace UI_WPF.Behaviors
             }
         }
 
-        // Construye el texto resultante si se inserta 'input' en la selección actual
-        private static string GetProposedText(TextBox tb, string input)
+        // Texto resultante y nueva posición del cursor si se inserta 'input' en la selección actual
+        private static string GetProposedText(TextBox tb, string input, out int newCaret)
         {
-            var text = tb.Text ?? string.Empty;
+            string text = tb.Text ?? string.Empty;
             int selStart = tb.SelectionStart;
             int selLen = tb.SelectionLength;
 
-            var baseText = selLen > 0 ? text.Remove(selStart, selLen) : text;
-            return baseText.Insert(selStart, input);
+            // Simular reemplazo de la selección por el input
+            string baseText = selLen > 0 ? text.Remove(selStart, selLen) : text;
+            string result = baseText.Insert(selStart, input);
+
+            newCaret = selStart + input.Length;
+            return result;
         }
     }
 }

@@ -1,11 +1,11 @@
 ﻿using System;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
 using InventorBridge;
-using Microsoft.Win32;
 
 namespace UI_WPF.ViewModels
 {
@@ -14,8 +14,16 @@ namespace UI_WPF.ViewModels
         private string _title = "TankBuilder – Sheet Metal (in)";
         private double _widthIn;
         private double _heightIn;
-        private double _flangeIn; // LARGOF (pestaña)
-        private string? _partPath;
+        private double _flangeIn;
+
+        // Segmento elegido (segmento1..segmento4)
+        private string _selectedSegmentKey = "segmento1";
+
+        // Carpeta de origen (DEBEN existir los .ipt por segmento)
+        private readonly string _sourceDirectory = @"C:\Users\pmcaj\E2X\TankBuilder\PIEZAPRUEBA\";
+
+        // Carpeta de salida (aquí se guardan las piezas nuevas)
+        private readonly string _outputDirectory = @"C:\Users\pmcaj\E2X\TankBuilder\Salida";
 
         public string Title
         {
@@ -36,23 +44,40 @@ namespace UI_WPF.ViewModels
             set { _heightIn = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); }
         }
 
-        // LARGOF = largo de pestaña (in)
         public double FlangeIn
         {
             get => _flangeIn;
             set { _flangeIn = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); }
         }
 
-        // Ruta de la pieza (.ipt) a modificar
-        public string? PartPath
+        // Opciones visibles
+        public ObservableCollection<string> SegmentOptions { get; } =
+            new(new[] { "segmento1", "segmento2", "segmento3", "segmento4" });
+
+        public string SelectedSegmentKey
         {
-            get => _partPath;
-            set { _partPath = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); }
+            get => _selectedSegmentKey;
+            set
+            {
+                if (_selectedSegmentKey != value)
+                {
+                    _selectedSegmentKey = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(PartPath));   // ruta origen
+                    OnPropertyChanged(nameof(OutputPath)); // ruta destino
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
         }
 
+        // Ruta origen calculada
+        public string PartPath => Path.Combine(_sourceDirectory, $"{SelectedSegmentKey}.ipt");
+
+        // Ruta destino calculada (misma convención de nombre)
+        public string OutputPath => Path.Combine(_outputDirectory, $"{SelectedSegmentKey}.ipt");
+
         // Comandos
-        public ICommand BrowsePartCommand { get; }
-        public ICommand GenerateSheetCommand { get; }   // "Modificar pieza"
+        public ICommand ModifyCommand { get; }
 
         public MainViewModel()
         {
@@ -61,29 +86,13 @@ namespace UI_WPF.ViewModels
             HeightIn = 82.98;
             FlangeIn = 4.00;
 
-            BrowsePartCommand = new RelayCommand(BrowsePart);
-            GenerateSheetCommand = new RelayCommand(ModifyPart, CanModify);
+            ModifyCommand = new RelayCommand(ModifyPart, CanModify);
         }
 
         private bool CanModify()
         {
             return WidthIn > 0 && HeightIn > 0 && FlangeIn > 0
-                   && !string.IsNullOrWhiteSpace(PartPath)
                    && File.Exists(PartPath);
-        }
-
-        private void BrowsePart()
-        {
-            var dlg = new OpenFileDialog
-            {
-                Title = "Selecciona la pieza de Sheet Metal a modificar",
-                Filter = "Inventor Part (*.ipt)|*.ipt",
-                CheckFileExists = true,
-                Multiselect = false
-            };
-
-            if (dlg.ShowDialog() == true)
-                PartPath = dlg.FileName;
         }
 
         private void ModifyPart()
@@ -92,33 +101,37 @@ namespace UI_WPF.ViewModels
             {
                 if (!CanModify())
                 {
-                    MessageBox.Show("Verifique ruta del archivo, y que ANCHO, LARGO y LARGOF sean > 0.",
-                        "Datos incompletos", MessageBoxButton.OK, MessageBoxImage.Information);
+                    var msg = File.Exists(PartPath)
+                        ? "Verifique que ANCHO, LARGO y LARGOF sean > 0."
+                        : $"No se encontró el archivo de origen:\n{PartPath}";
+                    MessageBox.Show(msg, "Datos incompletos", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
 
-                // Construir modelo (en pulgadas)
+                // Construir modelo (en pulgadas). Depth = LARGOF por compatibilidad con tu TankModel.
                 var service = new CoreLogic.Services.TankBuilderService(
                     WidthIn, HeightIn, /*Depth=LARGOF*/ FlangeIn, /*Thickness*/ 0);
                 var tank = service.Tank;
 
                 var connector = new InventorConnector();
-
-                // Modificar la pieza existente: ANCHO, LARGO y LARGOF (pulgadas)
-                connector.ModifyTankSheetMetal(PartPath!, tank, FlangeIn);
+                connector.ModifyTankSheetMetal(PartPath, tank, FlangeIn, _outputDirectory);
 
                 MessageBox.Show(
-                    $"Pieza modificada:\n{PartPath}",
+                    $"Pieza modificada guardada en:\n{OutputPath}",
                     "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                // Refrescar por si un watcher o validación visual depende de esto
+                OnPropertyChanged(nameof(OutputPath));
             }
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    $"Error al modificar la pieza:\n{ex.Message}",
+                    $"Error al modificar/guardar la pieza:\n{ex.Message}",
                     "Falla", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
+        // INotifyPropertyChanged
         public event PropertyChangedEventHandler? PropertyChanged;
         protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));

@@ -7,7 +7,7 @@
         xmlns:glb="clr-namespace:System.Globalization;assembly=mscorlib"
         mc:Ignorable="d"
         Title="{Binding Title}"
-        Height="470" Width="640"
+        Height="540" Width="720"
         WindowStartupLocation="CenterScreen"
         Background="White">
 
@@ -29,43 +29,51 @@
         <StackPanel Grid.Row="1"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Top"
-                    Width="420"
+                    Width="520"
                     Orientation="Vertical">
 
-            <!-- Selección de pieza -->
-            <TextBlock Text="Pieza de Sheet Metal a modificar (.ipt)"
-                       FontSize="16"
-                       FontWeight="SemiBold"
-                       Foreground="Black"
-                       Margin="0,0,0,10"
-                       TextAlignment="Center"/>
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                <TextBox Text="{Binding PartPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                         Width="300"
-                         IsReadOnly="True"
-                         Margin="0,0,8,0"
-                         ToolTip="Ruta de la pieza Inventor (.ipt) a modificar"/>
-                <Button Content="Seleccionar pieza…"
-                        Command="{Binding BrowsePartCommand}"
-                        Width="140"
-                        Height="28"
-                        Cursor="Hand"/>
-            </StackPanel>
+            <!-- Selección de segmento -->
+            <TextBlock Text="Segmento a modificar"
+                       FontSize="16" FontWeight="SemiBold" Foreground="Black"
+                       Margin="0,0,0,10" TextAlignment="Center"/>
+
+            <ComboBox ItemsSource="{Binding SegmentOptions}"
+                      SelectedItem="{Binding SelectedSegmentKey}"
+                      Margin="0,0,0,8" FontSize="14" MinHeight="28" Width="220"
+                      HorizontalAlignment="Center"/>
+
+            <!-- Rutas (origen/destino) -->
+            <Grid Margin="0,12,0,16">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="120"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Origen (.ipt):" VerticalAlignment="Center" Foreground="Gray" />
+                <TextBox   Grid.Row="0" Grid.Column="1" Text="{Binding PartPath, Mode=OneWay}"
+                           IsReadOnly="True" FontSize="12" Margin="6,0,0,0"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Destino (.ipt):" VerticalAlignment="Center" Foreground="Gray" />
+                <TextBox   Grid.Row="1" Grid.Column="1" Text="{Binding OutputPath, Mode=OneWay}"
+                           IsReadOnly="True" FontSize="12" Margin="6,4,0,0"/>
+            </Grid>
 
             <Separator Margin="0,0,0,12"/>
 
             <TextBlock Text="Dimensiones (en pulgadas, in)"
-                       FontSize="16"
-                       FontWeight="SemiBold"
-                       Foreground="Black"
-                       Margin="0,0,0,12"
+                       FontSize="16" FontWeight="SemiBold"
+                       Foreground="Black" Margin="0,0,0,12"
                        TextAlignment="Center"/>
 
             <!-- ANCHO -->
             <TextBlock Text="Ancho (ANCHO) [in]" Foreground="Black"/>
             <TextBox
                 behaviors:NumericDotInput.IsEnabled="True"
-                Text="{Binding WidthIn, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged,
+                Text="{Binding WidthIn, Mode=TwoWay, UpdateSourceTrigger=LostFocus,
                                ConverterCulture={x:Static glb:CultureInfo.InvariantCulture}}"
                 Margin="0,2,0,10" FontSize="14"/>
 
@@ -73,24 +81,23 @@
             <TextBlock Text="Largo (LARGO) [in]" Foreground="Black"/>
             <TextBox
                 behaviors:NumericDotInput.IsEnabled="True"
-                Text="{Binding HeightIn, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged,
+                Text="{Binding HeightIn, Mode=TwoWay, UpdateSourceTrigger=LostFocus,
                                ConverterCulture={x:Static glb:CultureInfo.InvariantCulture}}"
                 Margin="0,2,0,10" FontSize="14"/>
 
-            <!-- LARGOF = pestaña/flange -->
+            <!-- LARGOF -->
             <TextBlock Text="Largo de pestaña (LARGOF) [in]" Foreground="Black"/>
             <TextBox
                 behaviors:NumericDotInput.IsEnabled="True"
-                Text="{Binding FlangeIn, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged,
+                Text="{Binding FlangeIn, Mode=TwoWay, UpdateSourceTrigger=LostFocus,
                                ConverterCulture={x:Static glb:CultureInfo.InvariantCulture}}"
                 Margin="0,2,0,16" FontSize="14"/>
 
             <!-- Botón principal -->
-            <StackPanel Orientation="Horizontal"
-                        HorizontalAlignment="Center">
-                <Button Content="Modificar pieza"
-                        Command="{Binding GenerateSheetCommand}"
-                        Width="180" Height="36"
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                <Button Content="Modificar y guardar en carpeta destino"
+                        Command="{Binding ModifyCommand}"
+                        Width="280" Height="36"
                         Background="#007ACC"
                         Foreground="White"
                         FontWeight="Bold"
@@ -98,11 +105,9 @@
                         Cursor="Hand"/>
             </StackPanel>
 
-            <TextBlock Text="Los parámetros ANCHO, LARGO y LARGOF se escribirán directamente en la pieza seleccionada (.ipt)."
-                       Foreground="Gray"
-                       FontSize="12"
-                       Margin="0,12,0,0"
-                       TextAlignment="Center"/>
+            <TextBlock Text="Se aplicarán ANCHO, LARGO y LARGOF (in) a la pieza del segmento seleccionado. El resultado se guardará en la carpeta destino con el mismo nombre de archivo."
+                       Foreground="Gray" FontSize="12"
+                       Margin="0,12,0,0" TextAlignment="Center"/>
         </StackPanel>
     </Grid>
 </Window>
