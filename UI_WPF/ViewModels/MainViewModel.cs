@@ -16,65 +16,82 @@ namespace UI_WPF.ViewModels
         private double _heightIn;
         private double _flangeIn;
 
-        // Segmento elegido (segmento1..segmento4)
-        private string _selectedSegmentKey = "segmento1";
+        private string _selectedSegmentKey = "BackWallTop";
 
-        // Carpeta de origen (DEBEN existir los .ipt por segmento)
-        private readonly string _sourceDirectory = @"C:\Users\pmcaj\E2X\TankBuilder\PIEZAPRUEBA\";
+        // Rutas fijas (D:)
+        private readonly string _sourceDirectory = @"D:\E2X\PROGRAM\TankBuilder\PIEZAPRUEBA\";
+        private readonly string _outputDirectory = @"D:\E2X\PROGRAM\TankBuilder\Salida\";
 
-        // Carpeta de salida (aquí se guardan las piezas nuevas)
-        private readonly string _outputDirectory = @"C:\Users\pmcaj\E2X\TankBuilder\Salida";
+        // ✅ Nuevo: checkbox para aplicar color verde (SSTL) solo en BackWallTop
+        private bool _applyGreen;
 
         public string Title
         {
-            get => _title;
+            get { return _title; }
             set { _title = value; OnPropertyChanged(); }
         }
 
         // Entradas en pulgadas (in)
         public double WidthIn
         {
-            get => _widthIn;
+            get { return _widthIn; }
             set { _widthIn = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); }
         }
 
         public double HeightIn
         {
-            get => _heightIn;
+            get { return _heightIn; }
             set { _heightIn = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); }
         }
 
         public double FlangeIn
         {
-            get => _flangeIn;
+            get { return _flangeIn; }
             set { _flangeIn = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); }
         }
 
-        // Opciones visibles
+        // Segmentos disponibles
         public ObservableCollection<string> SegmentOptions { get; } =
-            new(new[] { "segmento1", "segmento2", "segmento3", "segmento4" });
+            new ObservableCollection<string>(new[] { "BackWallTop", "BackWallBottom", "FrontWallTop", "LeftWall" });
 
         public string SelectedSegmentKey
         {
-            get => _selectedSegmentKey;
+            get { return _selectedSegmentKey; }
             set
             {
                 if (_selectedSegmentKey != value)
                 {
                     _selectedSegmentKey = value;
+                    // Al cambiar segmento, recalcular rutas y visibilidad de checkbox
                     OnPropertyChanged();
-                    OnPropertyChanged(nameof(PartPath));   // ruta origen
-                    OnPropertyChanged(nameof(OutputPath)); // ruta destino
+                    OnPropertyChanged("PartPath");
+                    OnPropertyChanged("OutputPath");
+                    OnPropertyChanged("IsBackWallTop");
+
+                    // Por claridad: apagar el checkbox al cambiar de segmento
+                    ApplyGreen = false;
+
                     CommandManager.InvalidateRequerySuggested();
                 }
             }
         }
 
-        // Ruta origen calculada
-        public string PartPath => Path.Combine(_sourceDirectory, $"{SelectedSegmentKey}.ipt");
+        // ✅ Visibilidad del checkbox (solo BackWallTop)
+        public bool IsBackWallTop
+        {
+            get { return string.Equals(SelectedSegmentKey, "BackWallTop", StringComparison.OrdinalIgnoreCase); }
+        }
 
-        // Ruta destino calculada (misma convención de nombre)
-        public string OutputPath => Path.Combine(_outputDirectory, $"{SelectedSegmentKey}.ipt");
+        // ✅ Estado del checkbox
+        public bool ApplyGreen
+        {
+            get { return _applyGreen; }
+            set { _applyGreen = value; OnPropertyChanged(); }
+        }
+
+        // Rutas calculadas
+        public string PartPath { get { return Path.Combine(_sourceDirectory, SelectedSegmentKey + ".ipt"); } }
+        public string OutputPath { get { return Path.Combine(_outputDirectory, SelectedSegmentKey + ".ipt"); } }
 
         // Comandos
         public ICommand ModifyCommand { get; }
@@ -101,61 +118,81 @@ namespace UI_WPF.ViewModels
             {
                 if (!CanModify())
                 {
-                    var msg = File.Exists(PartPath)
+                    string msg = File.Exists(PartPath)
                         ? "Verifique que ANCHO, LARGO y LARGOF sean > 0."
-                        : $"No se encontró el archivo de origen:\n{PartPath}";
+                        : "No se encontró el archivo de origen:\n" + PartPath;
                     MessageBox.Show(msg, "Datos incompletos", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
 
-                // Construir modelo (en pulgadas). Depth = LARGOF por compatibilidad con tu TankModel.
+                // Asegurar carpeta de salida
+                if (!Directory.Exists(_outputDirectory))
+                    Directory.CreateDirectory(_outputDirectory);
+
+                // Construir modelo (en pulgadas). Depth = LARGOF
                 var service = new CoreLogic.Services.TankBuilderService(
                     WidthIn, HeightIn, /*Depth=LARGOF*/ FlangeIn, /*Thickness*/ 0);
                 var tank = service.Tank;
 
                 var connector = new InventorConnector();
-                connector.ModifyTankSheetMetal(PartPath, tank, FlangeIn, _outputDirectory);
+
+                // ✅ Apariencia opcional:
+                // Solo si es BackWallTop y el checkbox está marcado => "Verde (SSTL)"
+                string appearance = null;
+                if (IsBackWallTop && ApplyGreen)
+                    appearance = "Verde (SSTL)";
+
+                connector.ModifyTankSheetMetal(PartPath, tank, FlangeIn, _outputDirectory, appearance);
 
                 MessageBox.Show(
-                    $"Pieza modificada guardada en:\n{OutputPath}",
+                    "Pieza modificada guardada en:\n" + OutputPath,
                     "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
 
-                // Refrescar por si un watcher o validación visual depende de esto
-                OnPropertyChanged(nameof(OutputPath));
+                OnPropertyChanged("OutputPath");
+            }
+            catch (System.Runtime.InteropServices.COMException comEx)
+            {
+                MessageBox.Show(
+                    "No se pudo conectar con Inventor o aplicar cambios.\n\n" + comEx.Message,
+                    "Error de conexión", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    $"Error al modificar/guardar la pieza:\n{ex.Message}",
+                    "Error al modificar/guardar la pieza:\n" + ex.Message,
                     "Falla", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         // INotifyPropertyChanged
-        public event PropertyChangedEventHandler? PropertyChanged;
-        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        public event PropertyChangedEventHandler PropertyChanged;
+        protected void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        {
+            var handler = PropertyChanged;
+            if (handler != null) handler(this, new PropertyChangedEventArgs(propertyName));
+        }
     }
 
     // Comando simple
     public class RelayCommand : ICommand
     {
         private readonly Action _execute;
-        private readonly Func<bool>? _canExecute;
+        private readonly Func<bool> _canExecute;
 
-        public RelayCommand(Action execute, Func<bool>? canExecute = null)
+        public RelayCommand(Action execute, Func<bool> canExecute = null)
         {
-            _execute = execute ?? throw new ArgumentNullException(nameof(execute));
+            if (execute == null) throw new ArgumentNullException("execute");
+            _execute = execute;
             _canExecute = canExecute;
         }
 
-        public event EventHandler? CanExecuteChanged
+        public event EventHandler CanExecuteChanged
         {
             add { CommandManager.RequerySuggested += value; }
             remove { CommandManager.RequerySuggested -= value; }
         }
 
-        public bool CanExecute(object? parameter) => _canExecute == null || _canExecute();
-        public void Execute(object? parameter) => _execute();
+        public bool CanExecute(object parameter) { return _canExecute == null || _canExecute(); }
+        public void Execute(object parameter) { _execute(); }
     }
 }

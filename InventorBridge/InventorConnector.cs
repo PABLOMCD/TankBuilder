@@ -25,38 +25,43 @@ namespace InventorBridge
             }
         }
 
-        // ========= MODIFICAR PIEZA EXISTENTE Y GUARDAR EN OTRA CARPETA =========
         /// <summary>
-        /// Modifica ANCHO, LARGO y LARGOF (pulgadas) y guarda la pieza resultante en outputDirectory
-        /// conservando el nombre del archivo original.
+        /// Modifica ANCHO, LARGO, LARGOF (pulgadas) y guarda en outputDirectory.
+        /// appearanceKey (opcional): si no es null/empty, intenta aplicar esa apariencia.
         /// </summary>
-        public void ModifyTankSheetMetal(string partPath, TankModel tank, double flangeIn, string outputDirectory)
+        public void ModifyTankSheetMetal(
+            string partPath,
+            TankModel tank,
+            double flangeIn,
+            string outputDirectory,
+            string appearanceKey // puede venir null; C# 7.3 no usa "string?"
+        )
         {
             if (string.IsNullOrWhiteSpace(partPath))
-                throw new ArgumentException("Ruta de la pieza no válida.", nameof(partPath));
+                throw new ArgumentException("Ruta de la pieza no válida.", "partPath");
             if (!IOFile.Exists(partPath))
                 throw new System.IO.FileNotFoundException("No se encontró la pieza a modificar.", partPath);
             if (flangeIn <= 0)
-                throw new ArgumentOutOfRangeException(nameof(flangeIn), "El largo de pestaña (LARGOF) debe ser > 0 in.");
+                throw new ArgumentOutOfRangeException("flangeIn", "El largo de pestaña (LARGOF) debe ser > 0 in.");
             if (string.IsNullOrWhiteSpace(outputDirectory))
-                throw new ArgumentException("Directorio de salida no válido.", nameof(outputDirectory));
+                throw new ArgumentException("Directorio de salida no válido.", "outputDirectory");
 
-            // Asegurar carpeta de salida (usar alias para evitar ambigüedad)
+            // Asegurar carpeta de salida
             IODirectory.CreateDirectory(outputDirectory);
-
-            // Construir ruta destino con alias de Path
             string destPath = IOPath.Combine(outputDirectory, IOPath.GetFileName(partPath));
 
-            var partDoc = (PartDocument)_invApp.Documents.Open(partPath, true)
-                ?? throw new InvalidOperationException("No se pudo abrir el documento.");
+            PartDocument partDoc = (PartDocument)_invApp.Documents.Open(partPath, true);
+            if (partDoc == null) throw new InvalidOperationException("No se pudo abrir el documento.");
 
-            var txn = _invApp.TransactionManager.StartTransaction(
-                (Inventor._Document)partDoc, "TankBuilder: Modify SheetMetal (ANCHO/LARGO/LARGOF)");
+            Transaction txn = _invApp.TransactionManager.StartTransaction(
+                (Inventor._Document)partDoc, "TankBuilder: Modify (ANCHO/LARGO/LARGOF/Apariencia)");
 
             try
             {
-                var smDef = partDoc.ComponentDefinition as SheetMetalComponentDefinition
-                    ?? throw new InvalidOperationException("El documento no es de Sheet Metal.");
+                SheetMetalComponentDefinition smDef =
+                    partDoc.ComponentDefinition as SheetMetalComponentDefinition;
+                if (smDef == null)
+                    throw new InvalidOperationException("El documento no es de Sheet Metal.");
 
                 // Asignación directa (en pulgadas)
                 double anchoIn = tank.Width;     // ANCHO
@@ -65,11 +70,17 @@ namespace InventorBridge
 
                 bool okAncho = TrySetInterpolatedParameter(partDoc, "ALTO", anchoIn, "in");
                 bool okLargo = TrySetInterpolatedParameter(partDoc, "LARGO", largoIn, "in");
-                bool okLargof = TrySetInterpolatedParameter(partDoc, "LARGOF", largofIn, "in");
+                bool okLargof = TrySetInterpolatedParameter(partDoc, "FLANGIN", largofIn, "in");
 
                 if (!okAncho) throw new InvalidOperationException("Parámetro 'ANCHO' no encontrado en la pieza.");
                 if (!okLargo) throw new InvalidOperationException("Parámetro 'LARGO' no encontrado en la pieza.");
                 if (!okLargof) throw new InvalidOperationException("Parámetro 'LARGOF' (pestaña) no encontrado en la pieza.");
+
+                // Apariencia opcional (solo si mandan una clave no vacía)
+                if (!string.IsNullOrWhiteSpace(appearanceKey))
+                {
+                    ApplyAppearanceIfPossible(partDoc, appearanceKey);
+                }
 
                 partDoc.Update2(true);
 
@@ -85,38 +96,123 @@ namespace InventorBridge
             }
         }
 
-        // Firma anterior (compatibilidad): ahora exige también outputDirectory
+        // Firma compatibilidad (sin apariencia explícita)
         public void ModifyTankSheetMetal(string partPath, TankModel tank, string outputDirectory)
         {
-            double flangeIn = (tank?.Depth ?? 0) > 0 ? tank.Depth : -1;
+            double flangeIn = (tank != null && tank.Depth > 0) ? tank.Depth : -1;
             if (flangeIn <= 0)
                 throw new NotSupportedException(
                     "Se requiere el largo de pestaña (LARGOF). Use ModifyTankSheetMetal(partPath, tank, flangeIn, outputDirectory).");
 
-            ModifyTankSheetMetal(partPath, tank, flangeIn, outputDirectory);
+            ModifyTankSheetMetal(partPath, tank, flangeIn, outputDirectory, null);
         }
 
-        // ========= HELPERS =========
+        // ======== APARIENCIA (opcional) ========
+        private void ApplyAppearanceIfPossible(PartDocument doc, string appearanceKey)
+        {
+            // Construir candidatos según la clave "humana"
+            string[] candidates;
+
+            if (string.IsNullOrWhiteSpace(appearanceKey))
+                return;
+
+            string key = appearanceKey.Trim().ToLowerInvariant();
+
+            if (key == "gris")
+            {
+                candidates = new string[]
+                {
+                    "Generic - Gray", "Gray", "Paint - Enamel Glossy (Gray)",
+                    "Steel - Satin", "Aluminum - Brushed", "Dark Gray"
+                };
+            }
+            else if (key == "verde" || key == "verde (sstl)" || key == "verde sstl")
+            {
+                candidates = new string[]
+                {
+                    "Dark Green"
+                };
+            }
+            else
+            {
+                // usar el nombre tal cual recibimos
+                candidates = new string[] { appearanceKey };
+            }
+
+            Asset found = FindAppearanceAssetByNames(candidates);
+            if (found != null)
+            {
+                doc.ActiveAppearance = found;
+            }
+            // si no encontró, no romper: continuar sin cambio
+        }
+
+        private Asset FindAppearanceAssetByNames(string[] names)
+        {
+            if (names == null || names.Length == 0) return null;
+
+            AssetLibraries libs = _invApp.AssetLibraries;
+            foreach (AssetLibrary lib in libs)
+            {
+                foreach (string n in names)
+                {
+                    try
+                    {
+                        Asset a = lib.AppearanceAssets[n];
+                        if (a != null) return a;
+                    }
+                    catch
+                    {
+                        // Nombre no existe en esta librería; continuar
+                    }
+                }
+            }
+            return null;
+        }
+
+        // ======== HELPERS ========
         private static bool TrySetInterpolatedParameter(PartDocument doc, string target, double value, string units)
         {
             if (doc == null || string.IsNullOrWhiteSpace(target)) return false;
 
-            var parms = doc.ComponentDefinition.Parameters;
+            Parameters parms = doc.ComponentDefinition.Parameters;
             string t = NormalizeName(target);
 
-            // 1) Coincidencia exacta (normalizada)
+            // 1) Exacta (normalizada)
             foreach (Parameter p in parms.UserParameters)
-                if (NormalizeName(p.Name) == t) { p.Expression = $"{value} {units}"; return true; }
-
+            {
+                if (NormalizeName(p.Name) == t)
+                {
+                    p.Expression = value.ToString(System.Globalization.CultureInfo.InvariantCulture) + " " + units;
+                    return true;
+                }
+            }
             foreach (ModelParameter mp in parms.ModelParameters)
-                if (NormalizeName(mp.Name) == t) { mp.Expression = $"{value} {units}"; return true; }
+            {
+                if (NormalizeName(mp.Name) == t)
+                {
+                    mp.Expression = value.ToString(System.Globalization.CultureInfo.InvariantCulture) + " " + units;
+                    return true;
+                }
+            }
 
-            // 2) Coincidencia parcial (contiene)
+            // 2) Contiene (normalizada)
             foreach (Parameter p in parms.UserParameters)
-                if (NormalizeName(p.Name).Contains(t)) { p.Expression = $"{value} {units}"; return true; }
-
+            {
+                if (NormalizeName(p.Name).Contains(t))
+                {
+                    p.Expression = value.ToString(System.Globalization.CultureInfo.InvariantCulture) + " " + units;
+                    return true;
+                }
+            }
             foreach (ModelParameter mp in parms.ModelParameters)
-                if (NormalizeName(mp.Name).Contains(t)) { mp.Expression = $"{value} {units}"; return true; }
+            {
+                if (NormalizeName(mp.Name).Contains(t))
+                {
+                    mp.Expression = value.ToString(System.Globalization.CultureInfo.InvariantCulture) + " " + units;
+                    return true;
+                }
+            }
 
             return false;
         }

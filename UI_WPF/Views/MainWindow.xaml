@@ -7,9 +7,14 @@
         xmlns:glb="clr-namespace:System.Globalization;assembly=mscorlib"
         mc:Ignorable="d"
         Title="{Binding Title}"
-        Height="540" Width="720"
+        Height="640" Width="720"
         WindowStartupLocation="CenterScreen"
         Background="White">
+
+    <Window.Resources>
+        <!-- Para ocultar/mostrar el checkbox según IsBackWallTop -->
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </Window.Resources>
 
     <Grid Margin="24">
         <Grid.RowDefinitions>
@@ -93,6 +98,19 @@
                                ConverterCulture={x:Static glb:CultureInfo.InvariantCulture}}"
                 Margin="0,2,0,16" FontSize="14"/>
 
+            <!-- ✅ Apariencia: solo BackWallTop -->
+            <Separator Margin="0,0,0,12"/>
+            <TextBlock Text="Apariencia (solo BackWallTop)"
+                       FontSize="16" FontWeight="SemiBold"
+                       Foreground="Black" Margin="0,0,0,8"
+                       TextAlignment="Center"
+                       Visibility="{Binding IsBackWallTop, Converter={StaticResource BoolToVis}}"/>
+            <CheckBox Content="Aplicar color verde (SSTL)"
+                      IsChecked="{Binding ApplyGreen}"
+                      HorizontalAlignment="Center"
+                      Visibility="{Binding IsBackWallTop, Converter={StaticResource BoolToVis}}"
+                      Margin="0,0,0,12"/>
+
             <!-- Botón principal -->
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                 <Button Content="Modificar y guardar en carpeta destino"
@@ -105,7 +123,7 @@
                         Cursor="Hand"/>
             </StackPanel>
 
-            <TextBlock Text="Se aplicarán ANCHO, LARGO y LARGOF (in) a la pieza del segmento seleccionado. El resultado se guardará en la carpeta destino con el mismo nombre de archivo."
+            <TextBlock Text="Se aplicarán ANCHO, LARGO y LARGOF (in) a la pieza del segmento seleccionado. Si está activo el checkbox (y el segmento es BackWallTop), se aplicará la apariencia Verde (SSTL)."
                        Foreground="Gray" FontSize="12"
                        Margin="0,12,0,0" TextAlignment="Center"/>
         </StackPanel>
