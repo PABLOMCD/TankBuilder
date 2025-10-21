@@ -1,23 +1,33 @@
 ﻿namespace CoreLogic.Models
 {
-    public class TankModel
+    public class LeftWall
     {
-        public double Width { get; set; }        // pulgadas
-        public double Height { get; set; }       // pulgadas
-        public double Depth { get; set; }        // pulgadas
-        public double Thickness { get; set; }    // pulgadas
+        public double ALTO { get; set; }        
+        public double LARGO { get; set; }       
+        public double FLANGEIN { get; set; }
+        public double FLANGEANG { get; set; }
+        public double DIAMDV { get; set; }
+        public double LARGODV { get; set; }
+        public double ALTODV { get; set; }
+        public double ALTOLTG { get; set; }
+        public double LARGOLTG { get; set; }
+        public double DIAMLTG { get; set; }
+        public double ALTOLFV { get; set; }
+        public double LARGOLFV { get; set; }    
+        public double DIAMLFV { get; set; }
+        public double ALTOLLG { get; set; }
+        public double LARGOLLG { get; set; }
+        public double DIAMLLG { get; set; }
+        public double ALTOTP { get; set; }
+        public double LARGOTP { get; set; }
+        public double DIAMTP { get; set; }
+        public double ALTOPVG { get; set; }
+        public double LARGOPVG { get; set; }
+        public double DIAMPVG { get; set; }
 
-        public TankModel(double width, double height, double depth, double thickness)
+        public LeftWall( )
         {
-            Width = width;
-            Height = height;
-            Depth = depth;
-            Thickness = thickness;
-        }
 
-        public override string ToString()
-        {
-            return $"Tank: {Width}x{Depth}x{Height} in | Thickness: {Thickness} in";
         }
     }
 }

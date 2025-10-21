@@ -130,8 +130,7 @@ namespace UI_WPF.ViewModels
                     Directory.CreateDirectory(_outputDirectory);
 
                 // Construir modelo (en pulgadas). Depth = LARGOF
-                var service = new CoreLogic.Services.TankBuilderService(
-                    WidthIn, HeightIn, /*Depth=LARGOF*/ FlangeIn, /*Thickness*/ 0);
+                var service = new CoreLogic.Services.TankBuilderService(alto, largo, flangein,flangeang,diamdv,largodv,altodv, altoltg, largoltg, diamltg, altolfv, largolfv, diamlfv, altollg, largollg, diamllg, altotp, largotp, diamtp, altopvg, largopvg, diampvg);
                 var tank = service.Tank;
 
                 var connector = new InventorConnector();

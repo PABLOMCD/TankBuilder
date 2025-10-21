@@ -1,32 +1,74 @@
 ﻿using CoreLogic.Models;
-using System.Text;
+using System;
 
 namespace CoreLogic.Services
 {
     public class TankBuilderService
     {
-        public TankModel Tank { get; private set; }
+        public LeftWall Tank { get; private set; }
 
-        public TankBuilderService(double width, double height, double depth, double thickness)
+        public TankBuilderService(
+            double alto,
+            double largo,
+            double flangein,
+            double flangeang,
+            double diamdv, double largodv, double altodv,
+            double altoltg, double largoltg, double diamltg,
+            double altolfv, double largolfv, double diamlfv,
+            double altollg, double largollg, double diamllg,
+            double altotp, double largotp, double diamtp,
+            double altopvg, double largopvg, double diampvg
+        )
         {
-            Tank = new TankModel(width, height, depth, thickness);
+            // Crea el modelo con TODOS los valores proporcionados
+            Tank = new LeftWall
+            {
+                ALTO = alto,
+                LARGO = largo,
+                FLANGEIN = flangein,
+                FLANGEANG = flangeang,
+
+                DIAMDV = diamdv,
+                LARGODV = largodv,
+                ALTODV = altodv,
+
+                ALTOLTG = altoltg,
+                LARGOLTG = largoltg,
+                DIAMLTG = diamltg,
+
+                ALTOLFV = altolfv,
+                LARGOLFV = largolfv,
+                DIAMLFV = diamlfv,
+
+                ALTOLLG = altollg,
+                LARGOLLG = largollg,
+                DIAMLLG = diamllg,
+
+                ALTOTP = altotp,
+                LARGOTP = largotp,
+                DIAMTP = diamtp,
+
+                ALTOPVG = altopvg,
+                LARGOPVG = largopvg,
+                DIAMPVG = diampvg
+            };
+
+            // Validación opcional
+            Validate();
         }
 
-        public string GetSummary()
+        private void Validate()
         {
-            var sb = new StringBuilder();
-            sb.AppendLine("Tank Summary (in):");
-            sb.AppendLine($" - Width: {Tank.Width}");
-            sb.AppendLine($" - Height: {Tank.Height}");
-            sb.AppendLine($" - Depth: {Tank.Depth}");
-            sb.AppendLine($" - Thickness: {Tank.Thickness}");
-            sb.AppendLine();
-            sb.AppendLine("In millimeters:");
-            sb.AppendLine($" - Width: {Tank.Width * 25.4:F2} mm");
-            sb.AppendLine($" - Height: {Tank.Height * 25.4:F2} mm");
-            sb.AppendLine($" - Depth: {Tank.Depth * 25.4:F2} mm");
-            sb.AppendLine($" - Thickness: {Tank.Thickness * 25.4:F2} mm");
-            return sb.ToString();
+            if (Tank.ALTO <= 0 || Tank.LARGO <= 0)
+                throw new ArgumentException("El alto y el largo deben ser mayores que 0.");
+
+            if (Tank.FLANGEIN <= 0)
+                throw new ArgumentException("La pestaña (FLANGEIN) debe ser positiva.");
+
+            if (Tank.DIAMDV <= 0 || Tank.DIAMLTG <= 0)
+                throw new ArgumentException("Los diámetros de válvulas deben ser mayores que 0.");
+
+            // Puedes agregar más validaciones específicas de diseño aquí
         }
     }
 }

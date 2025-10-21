@@ -31,10 +31,10 @@ namespace InventorBridge
         /// </summary>
         public void ModifyTankSheetMetal(
             string partPath,
-            TankModel tank,
+            LeftWall tank,
             double flangeIn,
             string outputDirectory,
-            string appearanceKey // puede venir null; C# 7.3 no usa "string?"
+            string appearanceKey
         )
         {
             if (string.IsNullOrWhiteSpace(partPath))
@@ -64,15 +64,16 @@ namespace InventorBridge
                     throw new InvalidOperationException("El documento no es de Sheet Metal.");
 
                 // Asignación directa (en pulgadas)
-                double anchoIn = tank.Width;     // ANCHO
-                double largoIn = tank.Height;    // LARGO
+                double altoIn = tank.ALTO;     // ALTO
+                double largoIn = tank.LARGO;    // LARGO
                 double largofIn = flangeIn;       // LARGOF (pestaña)
+                //double flangeAng = 0;
 
-                bool okAncho = TrySetInterpolatedParameter(partDoc, "ALTO", anchoIn, "in");
+                bool okAlto = TrySetInterpolatedParameter(partDoc, "ALTO", altoIn, "in");
                 bool okLargo = TrySetInterpolatedParameter(partDoc, "LARGO", largoIn, "in");
-                bool okLargof = TrySetInterpolatedParameter(partDoc, "FLANGIN", largofIn, "in");
+                bool okLargof = TrySetInterpolatedParameter(partDoc, "FLANGEIN", largofIn, "in");
 
-                if (!okAncho) throw new InvalidOperationException("Parámetro 'ANCHO' no encontrado en la pieza.");
+                if (!okAlto) throw new InvalidOperationException("Parámetro 'ALTO' no encontrado en la pieza.");
                 if (!okLargo) throw new InvalidOperationException("Parámetro 'LARGO' no encontrado en la pieza.");
                 if (!okLargof) throw new InvalidOperationException("Parámetro 'LARGOF' (pestaña) no encontrado en la pieza.");
 
@@ -97,9 +98,9 @@ namespace InventorBridge
         }
 
         // Firma compatibilidad (sin apariencia explícita)
-        public void ModifyTankSheetMetal(string partPath, TankModel tank, string outputDirectory)
+        public void ModifyTankSheetMetal(string partPath, LeftWall tank, string outputDirectory)
         {
-            double flangeIn = (tank != null && tank.Depth > 0) ? tank.Depth : -1;
+            double flangeIn = (tank != null && tank.FLANGEIN > 0) ? tank.FLANGEIN : -1;
             if (flangeIn <= 0)
                 throw new NotSupportedException(
                     "Se requiere el largo de pestaña (LARGOF). Use ModifyTankSheetMetal(partPath, tank, flangeIn, outputDirectory).");

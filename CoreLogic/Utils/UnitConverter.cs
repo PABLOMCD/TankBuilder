@@ -1,4 +1,4 @@
-﻿namespace CoreLogic.Utils
+﻿/*namespace CoreLogic.Utils
 {
     public static class UnitConverter
     {
@@ -10,4 +10,4 @@
         public static double ToInches(double millimeters)
             => millimeters / InchToMillimeter;
     }
-}
+}*/
